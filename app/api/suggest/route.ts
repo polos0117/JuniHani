@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { isFamilyAuthorized, sameOrigin, unauthorized } from "@/lib/family-auth";
 
 export const runtime = "edge";
 type InputEvent = { id: string; date: string; time: string; title: string; categoryName: string; childName: string };
@@ -15,6 +16,8 @@ const schema = {
 };
 
 export async function POST(request: Request) {
+  if (!sameOrigin(request)) return Response.json({ error: "요청을 확인해 주세요." }, { status: 403 });
+  if (!await isFamilyAuthorized(request)) return unauthorized();
   const key = env.OPENAI_API_KEY;
   if (!key) return Response.json({ error: "AI 기능을 연결하는 중입니다. 일정 이미지 저장은 바로 사용할 수 있습니다." }, { status: 503 });
   let events: InputEvent[];

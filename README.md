@@ -8,10 +8,12 @@ Node.js 22.13 이상이 필요합니다.
 
 ```bash
 npm ci
+npm run build
+npx wrangler d1 execute site-creator-d1 --local --file drizzle/0000_gifted_secret_warriors.sql --config dist/server/wrangler.json --persist-to .wrangler/state
 npm run dev
 ```
 
-터미널에 표시된 로컬 주소(기본값 `http://localhost:5173`)에서 열 수 있습니다. `npm run test:image`는 실제 API 호출 없이 이미지 요청과 오류 처리를 확인하고, 배포용 빌드는 `npm run build`로 확인합니다.
+Git에 올리지 않는 `.env.local` 파일에 20자 이상의 무작위 `FAMILY_ACCESS_CODE`를 설정해야 가족 일정에 접속할 수 있습니다. 터미널에 표시된 로컬 주소(기본값 `http://localhost:5173`)에서 열 수 있습니다. `npm run test:image`는 실제 API 호출 없이 이미지 요청과 오류 처리를 확인합니다.
 
 ## AI 추천 설정
 
@@ -21,6 +23,6 @@ AI 준비물 추천과 동화풍 배경 생성은 OpenAI API를 사용합니다.
 
 ## 데이터와 배포
 
-입력한 일정, 아이, 일정 종류는 현재 화면에만 유지됩니다. 새로고침하면 초기화되므로 필요한 계획은 PNG로 저장하세요.
+아이, 일정 종류, 일정은 D1에 저장됩니다. 가족은 별도 계정 없이 같은 공유 코드를 입력해 여러 기기에서 조회·수정할 수 있습니다. 다른 기기의 변경 내용은 화면이 열려 있을 때 약 20초마다 반영됩니다. 일정 조회·저장과 AI 요청에는 서버가 발급한 HTTP 전용 세션 쿠키가 필요합니다. 공유 코드는 운영 사이트의 비밀 환경 변수에만 저장하며 GitHub 저장소에는 포함하지 않습니다.
 
-현재 운영 중인 [웹앱](https://kids-week-planner.jjshsin.chatgpt.site/)은 별도의 Sites 배포에서 실행됩니다. 이 GitHub 저장소는 소스 공개 및 빌드 확인용이며, GitHub에 푸시하는 것만으로 운영 사이트가 자동 배포되지는 않습니다. 운영 사이트는 소유자에게만 공개되어 있습니다.
+현재 운영 중인 [웹앱](https://kids-week-planner.jjshsin.chatgpt.site/)은 별도의 Sites 배포에서 실행됩니다. 이 GitHub 저장소는 소스 공개 및 빌드 확인용이며, GitHub에 푸시하는 것만으로 운영 사이트가 자동 배포되지는 않습니다. 웹앱 주소는 열려 있지만 일정 데이터와 AI 기능은 가족 공유 코드로 보호됩니다.

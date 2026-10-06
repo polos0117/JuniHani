@@ -1,9 +1,12 @@
 import { env } from "cloudflare:workers";
 import { generateIllustration, ImageGenerationError } from "@/lib/image-generation";
+import { isFamilyAuthorized, sameOrigin, unauthorized } from "@/lib/family-auth";
 
 export const runtime = "edge";
 
 export async function POST(request: Request) {
+  if (!sameOrigin(request)) return Response.json({ error: "요청을 확인해 주세요." }, { status: 403 });
+  if (!await isFamilyAuthorized(request)) return unauthorized();
   let style = "";
   try {
     const raw = await request.text();
