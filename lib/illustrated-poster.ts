@@ -1,11 +1,11 @@
 export type PosterEvent = { id: string; date: string; time: string; title: string; categoryId: string; childId: string };
 export type PosterChild = { id: string; name: string; color: string };
-export type PosterCategory = { id: string; name: string; color: string };
-export type PosterSuggestion = { eventId: string; text: string };
 
 const width = 1536;
-const margin = 88;
-const gap = 24;
+const bubbleWidth = 560;
+const bubbleGap = 150;
+const rowGap = 78;
+const firstRowTop = 225;
 const font = '"Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif';
 const koreanDays = ["일", "월", "화", "수", "목", "금", "토"];
 
@@ -25,20 +25,6 @@ function localDate(value: Date) {
   return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
 }
 
-function drawChildFace(ctx: CanvasRenderingContext2D, x: number, y: number, color: string) {
-  ctx.fillStyle = color;
-  ctx.beginPath(); ctx.arc(x, y, 30, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = "#ffe0c6";
-  ctx.beginPath(); ctx.arc(x, y + 3, 22, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = "#5d3e35";
-  ctx.beginPath(); ctx.arc(x, y - 6, 23, Math.PI, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(x - 7, y + 4, 2, 0, Math.PI * 2); ctx.arc(x + 7, y + 4, 2, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = "#9f5c56"; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(x, y + 9, 6, 0.12, Math.PI - 0.12); ctx.stroke();
-  ctx.fillStyle = "#f2a69c";
-  ctx.beginPath(); ctx.arc(x - 14, y + 11, 4, 0, Math.PI * 2); ctx.arc(x + 14, y + 11, 4, 0, Math.PI * 2); ctx.fill();
-}
-
 function shortLines(ctx: CanvasRenderingContext2D, value: string, maxWidth: number, maxLines = 2) {
   const chars = Array.from(value);
   const lines: string[] = [];
@@ -52,7 +38,7 @@ function shortLines(ctx: CanvasRenderingContext2D, value: string, maxWidth: numb
   }
   if (lines.length < maxLines && line) lines.push(line);
   if (lines.join("").length < chars.length && lines.length) {
-    let last = lines.length - 1;
+    const last = lines.length - 1;
     while (lines[last] && ctx.measureText(lines[last] + "…").width > maxWidth) lines[last] = lines[last].slice(0, -1);
     lines[last] += "…";
   }
@@ -68,115 +54,139 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
+type Group = { id: string; name: string; color: string; events: PosterEvent[] };
+type EventLine = { event: PosterEvent; lines: string[]; height: number };
+type Bubble = { group: Group; lines: EventLine[]; height: number };
+
+function measureBubble(ctx: CanvasRenderingContext2D, group: Group): Bubble {
+  ctx.font = `800 27px ${font}`;
+  const lines = group.events.map(event => {
+    const titleLines = shortLines(ctx, event.title, bubbleWidth - 102);
+    return { event, lines: titleLines, height: 48 + titleLines.length * 36 };
+  });
+  return { group, lines, height: 112 + lines.reduce((sum, item) => sum + item.height, 0) };
+}
+
+function drawBubble(ctx: CanvasRenderingContext2D, bubble: Bubble, x: number, y: number, column: number) {
+  const { group, lines, height } = bubble;
+  const tailX = column === 0 ? x + 148 : x + bubbleWidth - 148;
+  ctx.shadowColor = "rgba(92, 62, 52, .18)";
+  ctx.shadowBlur = 22;
+  ctx.shadowOffsetY = 8;
+  roundBox(ctx, x, y, bubbleWidth, height, "rgba(255, 253, 249, .88)", 36);
+  ctx.shadowColor = "transparent";
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+
+  ctx.fillStyle = "rgba(255, 253, 249, .88)";
+  ctx.beginPath();
+  ctx.moveTo(tailX - 32, y + height - 2);
+  ctx.lineTo(tailX, y + height + 34);
+  ctx.lineTo(tailX + 32, y + height - 2);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = group.color;
+  ctx.globalAlpha = .62;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.roundRect(x, y, bubbleWidth, height, 36);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  ctx.fillStyle = group.color;
+  ctx.font = `900 39px ${font}`;
+  ctx.fillText(group.name, x + 34, y + 62, bubbleWidth - 68);
+  ctx.strokeStyle = "rgba(103, 76, 65, .15)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x + 34, y + 82);
+  ctx.lineTo(x + bubbleWidth - 34, y + 82);
+  ctx.stroke();
+
+  let eventTop = y + 102;
+  lines.forEach((item, index) => {
+    ctx.fillStyle = group.color;
+    ctx.beginPath();
+    ctx.arc(x + 43, eventTop + 15, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#725c56";
+    ctx.font = `700 21px ${font}`;
+    const when = `${dateLabel(item.event.date)}${item.event.time ? ` · ${item.event.time}` : ""}`;
+    ctx.fillText(when, x + 61, eventTop + 23, bubbleWidth - 95);
+    ctx.fillStyle = "#4d3733";
+    ctx.font = `800 27px ${font}`;
+    item.lines.forEach((line, lineIndex) => ctx.fillText(line, x + 61, eventTop + 60 + lineIndex * 36));
+    eventTop += item.height;
+    if (index < lines.length - 1) {
+      ctx.strokeStyle = "rgba(103, 76, 65, .12)";
+      ctx.beginPath();
+      ctx.moveTo(x + 61, eventTop - 9);
+      ctx.lineTo(x + bubbleWidth - 34, eventTop - 9);
+      ctx.stroke();
+    }
+  });
+}
+
 export async function drawIllustratedPoster(
   dates: Date[],
   events: PosterEvent[],
   children: PosterChild[],
-  categories: PosterCategory[],
-  suggestions: PosterSuggestion[],
   background: string,
 ) {
   const image = await loadImage(background);
   const ordered = [...events].sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
-  const groups = children.filter(child => ordered.some(event => event.childId === child.id)).map(child => ({ id: child.id, name: child.name, color: child.color, events: ordered.filter(event => event.childId === child.id) }));
+  const groups: Group[] = children
+    .filter(child => ordered.some(event => event.childId === child.id))
+    .map(child => ({ id: child.id, name: child.name, color: child.color, events: ordered.filter(event => event.childId === child.id) }));
   const commonEvents = ordered.filter(event => !children.some(child => child.id === event.childId));
   if (commonEvents.length) groups.push({ id: "common", name: "가족 공통", color: "#a978bd", events: commonEvents });
-  const columns = groups.length === 1 ? 1 : 2;
-  const rows = Array.from({ length: Math.ceil(groups.length / columns) }, (_, index) => groups.slice(index * columns, index * columns + columns));
-  const rowHeights = rows.map(row => Math.max(...row.map(group => Math.max(260, 122 + group.events.length * 108))));
-  const suggestionsHeight = suggestions.length ? 110 + Math.ceil(suggestions.length / 2) * 62 : 0;
-  const contentHeight = 224 + rowHeights.reduce((sum, height) => sum + height + gap, 0) + suggestionsHeight + (suggestions.length ? gap : 0) + 100;
+
   const canvas = document.createElement("canvas");
   canvas.width = width;
-  canvas.height = Math.max(1024, contentHeight);
-  const ctx = canvas.getContext("2d");
+  canvas.height = 1024;
+  let ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("이미지를 만들 수 없습니다.");
+  const rows = Array.from({ length: Math.ceil(groups.length / 2) }, (_, index) =>
+    groups.slice(index * 2, index * 2 + 2).map(group => measureBubble(ctx!, group))
+  );
+  const rowHeights = rows.map(row => Math.max(...row.map(bubble => bubble.height)));
+  const contentBottom = firstRowTop + rowHeights.reduce((sum, height) => sum + height + rowGap, 0) + 90;
+  canvas.height = Math.max(1024, contentBottom);
+  ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("이미지를 만들 수 없습니다.");
 
-  ctx.fillStyle = "#fff7f0";
+  ctx.fillStyle = "#fff9f0";
   ctx.fillRect(0, 0, width, canvas.height);
-  ctx.drawImage(image, 0, 0, width, Math.min(1024, canvas.height));
+  ctx.drawImage(image, 0, 0, width, 1024);
   if (canvas.height > 1024) {
     const fade = ctx.createLinearGradient(0, 820, 0, 1080);
-    fade.addColorStop(0, "rgba(255,247,240,0)");
-    fade.addColorStop(1, "#fff7f0");
+    fade.addColorStop(0, "rgba(255, 249, 240, 0)");
+    fade.addColorStop(1, "#fff9f0");
     ctx.fillStyle = fade;
     ctx.fillRect(0, 820, width, 260);
   }
 
-  roundBox(ctx, 205, 40, width - 410, 142, "rgba(255,253,249,.91)", 42);
+  roundBox(ctx, 322, 45, 892, 126, "rgba(255, 253, 249, .82)", 44);
   ctx.textAlign = "center";
   ctx.fillStyle = "#573b35";
-  ctx.font = `900 64px ${font}`;
-  ctx.fillText("우리 아이들 주간 일정", width / 2, 112);
-  ctx.font = `700 28px ${font}`;
-  ctx.fillStyle = "#886b62";
-  ctx.fillText(`${dateLabel(localDate(dates[0]))}  ~  ${dateLabel(localDate(dates[6]))}`, width / 2, 157);
+  ctx.font = `900 54px ${font}`;
+  ctx.fillText("우리 아이들 주간 일정", width / 2, 105);
+  ctx.font = `700 25px ${font}`;
+  ctx.fillStyle = "#80665d";
+  ctx.fillText(`${dateLabel(localDate(dates[0]))}  ~  ${dateLabel(localDate(dates[6]))}`, width / 2, 148);
   ctx.textAlign = "left";
 
-  const cardWidth = (width - margin * 2 - (columns - 1) * gap) / columns;
-  let rowTop = 224;
+  let rowTop = firstRowTop;
   rows.forEach((row, rowIndex) => {
-    row.forEach((group, columnIndex) => {
-      const x = margin + columnIndex * (cardWidth + gap);
-      const height = rowHeights[rowIndex];
-      ctx.shadowColor = "rgba(112,71,61,.13)";
-      ctx.shadowBlur = 28;
-      ctx.shadowOffsetY = 8;
-      roundBox(ctx, x, rowTop, cardWidth, height, "rgba(255,255,255,.95)", 30);
-      ctx.shadowColor = "transparent";
-      ctx.shadowBlur = 0;
-      ctx.shadowOffsetY = 0;
-      roundBox(ctx, x, rowTop, cardWidth, 12, group.color, 6);
-      drawChildFace(ctx, x + 69, rowTop + 61, group.color);
-      ctx.fillStyle = group.color;
-      ctx.font = `900 ${columns === 1 ? 52 : 46}px ${font}`;
-      ctx.fillText(group.name, x + 111, rowTop + 78, cardWidth - 285);
-      ctx.font = `700 24px ${font}`;
-      ctx.fillStyle = "#8c7772";
-      ctx.textAlign = "right";
-      ctx.fillText(`${group.events.length}개 일정`, x + cardWidth - 34, rowTop + 73);
-      ctx.textAlign = "left";
-
-      group.events.forEach((event, index) => {
-        const itemY = rowTop + 105 + index * 108;
-        const category = categories.find(item => item.id === event.categoryId);
-        roundBox(ctx, x + 28, itemY, cardWidth - 56, 96, index % 2 ? "#f8f4f1" : "#f4f8f9", 18);
-        roundBox(ctx, x + 28, itemY, 8, 96, category?.color || group.color, 4);
-        ctx.font = `700 22px ${font}`;
-        ctx.fillStyle = "#8c6766";
-        const when = `${dateLabel(event.date)}${event.time ? `  ·  ${event.time}` : ""}`;
-        ctx.fillText(when, x + 51, itemY + 31, cardWidth - 100);
-        ctx.font = `800 27px ${font}`;
-        ctx.fillStyle = "#513b37";
-        const prefix = category ? `${category.name} · ` : "";
-        const lines = shortLines(ctx, prefix + event.title, cardWidth - 100, 2);
-        lines.forEach((line, lineIndex) => ctx.fillText(line, x + 51, itemY + 66 + lineIndex * 27));
-      });
-    });
-    rowTop += rowHeights[rowIndex] + gap;
+    const startX = row.length === 1 ? (width - bubbleWidth) / 2 : (width - bubbleWidth * 2 - bubbleGap) / 2;
+    row.forEach((bubble, column) => drawBubble(ctx!, bubble, startX + column * (bubbleWidth + bubbleGap), rowTop, column));
+    rowTop += rowHeights[rowIndex] + rowGap;
   });
 
-  if (suggestions.length) {
-    roundBox(ctx, margin, rowTop, width - margin * 2, suggestionsHeight, "rgba(255,250,235,.96)", 28);
-    ctx.fillStyle = "#6a493b";
-    ctx.font = `900 34px ${font}`;
-    ctx.fillText("✦ 이번 주 챙길 일", margin + 34, rowTop + 53);
-    ctx.font = `600 23px ${font}`;
-    suggestions.forEach((suggestion, index) => {
-      const event = events.find(item => item.id === suggestion.eventId);
-      const child = children.find(item => item.id === event?.childId);
-      const col = index % 2;
-      const line = Math.floor(index / 2);
-      const x = margin + 34 + col * 680;
-      const y = rowTop + 96 + line * 62;
-      ctx.fillStyle = "#765c4f";
-      ctx.fillText(`□ ${child?.name || "공통"} · ${suggestion.text}`, x, y, 635);
-    });
-  }
-
   ctx.textAlign = "right";
-  ctx.font = `700 20px ${font}`;
-  ctx.fillStyle = "#a3867c";
-  ctx.fillText("JuniHani ♡", width - margin, canvas.height - 43);
+  ctx.font = `700 19px ${font}`;
+  ctx.fillStyle = "#8a736d";
+  ctx.fillText("JuniHani ♡", width - 68, canvas.height - 35);
   return canvas.toDataURL("image/png");
 }

@@ -20,13 +20,12 @@ function datesInWeek(value: string) {
   start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
   return Array.from({ length: 7 }, (_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); return d; });
 }
-function drawPng(dates: Date[], events: EventItem[], suggestions: Suggestion[], children: Child[], categories: CategoryItem[]) {
+function drawPng(dates: Date[], events: EventItem[], children: Child[], categories: CategoryItem[]) {
   const canvas = document.createElement("canvas");
   const groups = dates.map(date => events.filter(item => item.date === iso(date)).sort((a, b) => a.time.localeCompare(b.time)));
   const heights = groups.map(items => Math.max(105, 62 + items.length * 43));
-  const taskHeight = Math.max(150, 68 + Math.max(1, suggestions.length) * 39);
   canvas.width = 1200;
-  canvas.height = 255 + heights.reduce((sum, height) => sum + height + 13, 0) + taskHeight + 95;
+  canvas.height = 255 + heights.reduce((sum, height) => sum + height + 13, 0) + 80;
   const context = canvas.getContext("2d");
   if (!context) throw new Error("이미지를 만들 수 없습니다.");
   const ctx = context;
@@ -55,16 +54,6 @@ function drawPng(dates: Date[], events: EventItem[], suggestions: Suggestion[], 
     });
     y += height + 13;
   });
-  y += 9;
-  box(82, y, 1026, taskHeight, "#fff6e5");
-  ctx.fillStyle = "#594318"; ctx.font = "700 29px sans-serif"; ctx.fillText("추천 준비", 109, y + 45);
-  ctx.font = "500 22px sans-serif";
-  if (!suggestions.length) ctx.fillText("일정을 입력하고 AI 추천을 받아보세요.", 109, y + 94);
-  suggestions.forEach((item, i) => {
-    const event = events.find(event => event.id === item.eventId);
-    const child = children.find(child => child.id === event?.childId);
-    ctx.fillText(`□ [${child?.name || "공통"}] ${item.text}`, 109, y + 89 + i * 39, 944);
-  });
   return canvas.toDataURL("image/png");
 }
 
@@ -91,11 +80,11 @@ export default function Home() {
   useEffect(() => {
     if (!illustration || !events.some(item => item.date >= start && item.date <= end)) { setPosterUrl(""); return; }
     let active = true;
-    drawIllustratedPoster(dates, events.filter(item => item.date >= start && item.date <= end), children, categories, suggestions, illustration)
+    drawIllustratedPoster(dates, events.filter(item => item.date >= start && item.date <= end), children, illustration)
       .then(url => { if (active) setPosterUrl(url); })
       .catch(() => { if (active) setNotice("일러스트 이미지를 표시하지 못했습니다. 다시 만들어 주세요."); });
     return () => { active = false; };
-  }, [illustration, events, children, categories, suggestions, dates, start, end]);
+  }, [illustration, events, children, dates, start, end]);
   function addCategory(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const name = categoryName.trim();
@@ -148,7 +137,7 @@ export default function Home() {
       const response = await fetch("/api/suggest", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ events: currentEvents.map(item => ({ ...item, childName: childFor(item.childId)?.name || "공통", categoryName: categoryFor(item.categoryId)?.name || "기타" })) }) });
       const data = await response.json() as { error?: string; suggestions: Suggestion[] };
       if (!response.ok) throw new Error(data.error || "AI 추천을 가져오지 못했습니다.");
-      setSuggestions(data.suggestions); setNotice("추천 준비를 확인한 뒤 이미지를 저장하세요.");
+      setSuggestions(data.suggestions); setNotice("준비할 일을 확인해 주세요. 저장 이미지에는 일정만 표시됩니다.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "AI 연결에 실패했습니다."); }
     finally { setBusy(false); }
   }
@@ -180,7 +169,7 @@ export default function Home() {
   function download() {
     if (!currentEvents.length) { setNotice("이미지에 넣을 일정을 먼저 입력해 주세요."); return; }
     try {
-      const url = drawPng(dates, currentEvents, suggestions, children, categories);
+      const url = drawPng(dates, currentEvents, children, categories);
       const link = document.createElement("a"); link.href = url; link.download = `아이들-주간계획-${start}.png`;
       document.body.appendChild(link); link.click(); link.remove();
       setNotice("PNG 이미지가 저장되었습니다.");
@@ -216,7 +205,7 @@ export default function Home() {
           return <div className={`day-card ${dayEvents.length ? "has-events" : ""}`} key={iso(d)}><div className="day-heading"><strong>{weekNames[d.getDay()]}요일</strong><span>{label(d)}</span></div>{dayEvents.length ? <ul>{dayEvents.map(item => <li key={item.id}><span className="child-badge" style={{ borderColor: childFor(item.childId)?.color || "#9baeb2" }}>{childFor(item.childId)?.name || "공통"}</span><span className="category" style={{ backgroundColor: (categoryFor(item.categoryId)?.color || "#9baeb2") + "33" }}>{categoryFor(item.categoryId)?.name || "기타"}</span><span className="event-text">{item.time && <time>{item.time} </time>}{item.title}</span><button type="button" onClick={() => { setEvents(previous => previous.filter(e => e.id !== item.id)); setSuggestions(previous => previous.filter(s => s.eventId !== item.id)); }} aria-label={`${item.title} 삭제`}><Trash2 size={17} /></button></li>)}</ul> : <p className="empty-day">아직 일정이 없어요</p>}</div>;
         })}</div>
         <div className="suggestions"><div className="suggestions-head"><div><span className="sparkle-icon"><Sparkles size={19} /></span><span><h3>준비할 일</h3><small>일정을 바탕으로 챙길 일을 정리해요</small></span></div><button type="button" onClick={askAi} disabled={busy}>{busy ? "정리 중…" : "AI로 정리하기"}</button></div>{suggestions.length ? <ul>{suggestions.map((item, i) => { const event = currentEvents.find(event => event.id === item.eventId); return <li key={item.eventId + i}><span className="checkbox" aria-hidden="true" /><span><strong>{childFor(event?.childId || "")?.name || "공통"}</strong> {item.text}</span></li>; })}</ul> : <p>일정을 입력한 뒤 AI로 준비할 일을 정리할 수 있습니다.</p>}</div>
-        <div className="illustration-panel"><div className="illustration-heading"><span className="illustration-icon" aria-hidden="true"><ImagePlus size={22} /></span><div><h3>동화 일러스트 이미지</h3><p>첨부한 예시처럼 구름·별·곰돌이로 꾸민 일정표를 만들어요.</p></div></div><label className="illustration-style" htmlFor="illustration-style">원하는 꾸밈 분위기 <span>(선택)</span></label><input id="illustration-style" className="illustration-style-input" type="text" value={imageStyle} onChange={event => setImageStyle(event.target.value)} maxLength={160} placeholder="예: 분홍 꽃과 토끼, 파란 하늘과 별" disabled={imageBusy} /><div className="illustration-actions"><button className="illustration-create" type="button" onClick={generateIllustration} disabled={imageBusy || !currentEvents.length}>{imageBusy ? "이미지 만드는 중…" : "AI로 새 배경 만들기"}</button><button className="illustration-template" type="button" onClick={useStaticIllustration} disabled={imageBusy || !currentEvents.length}>기본 일러스트 사용</button>{posterUrl && <button className="illustration-save" type="button" onClick={downloadIllustration}><Download size={17} /> 일러스트 PNG 저장</button>}</div><p className="illustration-privacy">기본 일러스트는 API 크레딧 없이 사용합니다. AI는 꾸밈 배경만 생성하며, 아이 이름과 일정은 기기에서 정확한 한글로 넣습니다.</p>{posterUrl && <div className="illustration-preview"><img src={posterUrl} alt="아이별 일정이 적힌 동화풍 주간 일정표 미리보기" /></div>}</div>
+        <div className="illustration-panel"><div className="illustration-heading"><span className="illustration-icon" aria-hidden="true"><ImagePlus size={22} /></span><div><h3>동화 일러스트 이미지</h3><p>아이별 일정을 작은 말풍선에 담아 배경 그림과 함께 보여줘요.</p></div></div><label className="illustration-style" htmlFor="illustration-style">원하는 꾸밈 분위기 <span>(선택)</span></label><input id="illustration-style" className="illustration-style-input" type="text" value={imageStyle} onChange={event => setImageStyle(event.target.value)} maxLength={160} placeholder="예: 분홍 꽃과 토끼, 파란 하늘과 별" disabled={imageBusy} /><div className="illustration-actions"><button className="illustration-create" type="button" onClick={generateIllustration} disabled={imageBusy || !currentEvents.length}>{imageBusy ? "이미지 만드는 중…" : "AI로 새 배경 만들기"}</button><button className="illustration-template" type="button" onClick={useStaticIllustration} disabled={imageBusy || !currentEvents.length}>기본 일러스트 사용</button>{posterUrl && <button className="illustration-save" type="button" onClick={downloadIllustration}><Download size={17} /> 일러스트 PNG 저장</button>}</div><p className="illustration-privacy">AI는 꾸밈 배경만 생성하고, 아이 이름과 일정은 기기에서 한글로 넣습니다. 저장 이미지에는 챙길 일 목록이 포함되지 않습니다.</p>{posterUrl && <div className="illustration-preview"><img src={posterUrl} alt="아이별 일정이 말풍선에 적힌 동화풍 주간 일정표 미리보기" /></div>}</div>
         {notice && <p className="notice" role="status">{notice}</p>}
       </section>
     </div>
