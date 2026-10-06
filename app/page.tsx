@@ -12,6 +12,14 @@ type EventItem = { id: string; date: string; time: string; title: string; catego
 type Suggestion = { eventId: string; text: string };
 const weekNames = ["일", "월", "화", "수", "목", "금", "토"];
 const initialCategories: CategoryItem[] = [{ id: "hospital", name: "병원", color: "#ed856f" }, { id: "daycare", name: "어린이집", color: "#35969c" }, { id: "family", name: "가족", color: "#d9a14b" }];
+const backgroundTemplates = [
+  { id: "clouds", name: "구름과 친구들", file: "illustrated-background.png" },
+  { id: "twins", name: "쌍둥이 아들", file: "background-twin-boys.png" },
+  { id: "pink", name: "연분홍 토끼", file: "background-pink-bunnies.png" },
+  { id: "sky", name: "파란 하늘", file: "background-blue-sky.png" },
+  { id: "forest", name: "숲속 친구들", file: "background-forest-friends.png" },
+] as const;
+type BackgroundTemplateId = (typeof backgroundTemplates)[number]["id"];
 type SharedData = { children: Child[]; categories: CategoryItem[]; events: EventItem[]; error?: string };
 const iso = (d: Date) => [d.getFullYear(), String(d.getMonth() + 1).padStart(2, "0"), String(d.getDate()).padStart(2, "0")].join("-");
 const dateOf = (v: string) => new Date(v + "T12:00:00");
@@ -91,6 +99,7 @@ export default function Home() {
   const [imageBusy, setImageBusy] = useState(false);
   const [imageStyle, setImageStyle] = useState("");
   const [illustration, setIllustration] = useState("");
+  const [selectedTemplate, setSelectedTemplate] = useState<BackgroundTemplateId | null>(null);
   const [posterUrl, setPosterUrl] = useState("");
   const [imageZoomed, setImageZoomed] = useState(false);
   const [notice, setNotice] = useState("");
@@ -104,6 +113,14 @@ export default function Home() {
       setSkin(saved);
       document.documentElement.dataset.skin = saved;
       document.querySelector('meta[name="theme-color"]')?.setAttribute("content", skins.find(item => item.id === saved)?.color || "#286f73");
+    }
+  }, []);
+  useEffect(() => {
+    const saved = window.localStorage.getItem("junihani-background-template");
+    const template = backgroundTemplates.find(item => item.id === saved);
+    if (template) {
+      setSelectedTemplate(template.id);
+      setIllustration(new URL(template.file, document.baseURI).href);
     }
   }, []);
   function selectSkin(next: SkinId) {
@@ -262,16 +279,21 @@ export default function Home() {
       const data = await response.json() as { image?: string; error?: string };
       if (!response.ok || !data.image?.startsWith("data:image/png;base64,")) throw new Error(data.error || "일러스트 이미지를 만들지 못했습니다.");
       setPosterUrl("");
+      setSelectedTemplate(null);
+      window.localStorage.removeItem("junihani-background-template");
       setIllustration(data.image);
       setNotice("일러스트가 완성되었습니다. 미리보기를 확인하고 PNG로 저장하세요.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "이미지 생성에 실패했습니다."); }
     finally { setImageBusy(false); }
   }
-  function useStaticIllustration() {
-    if (!currentEvents.length) { setNotice("이미지에 넣을 일정을 먼저 입력해 주세요."); return; }
-    setPosterUrl("");
-    setIllustration(new URL("illustrated-background.png", document.baseURI).href);
-    setNotice("기본 동화 배경을 적용했습니다. 미리보기를 확인하고 PNG로 저장하세요.");
+  function chooseBackgroundTemplate(id: BackgroundTemplateId) {
+    const template = backgroundTemplates.find(item => item.id === id);
+    if (!template) return;
+    if (selectedTemplate !== id) setPosterUrl("");
+    setSelectedTemplate(id);
+    window.localStorage.setItem("junihani-background-template", id);
+    setIllustration(new URL(template.file, document.baseURI).href);
+    setNotice(currentEvents.length ? `${template.name} 배경을 적용했습니다. 미리보기를 확인해 주세요.` : `${template.name} 배경을 선택했습니다. 일정을 입력하면 이미지가 완성됩니다.`);
   }
   function downloadIllustration() {
     if (!posterUrl) { setNotice("일러스트가 준비되면 저장할 수 있습니다."); return; }
@@ -332,7 +354,20 @@ export default function Home() {
           return <div className={`day-card ${dayEvents.length ? "has-events" : ""}`} key={iso(d)}><div className="day-heading"><strong>{weekNames[d.getDay()]}요일</strong><span>{label(d)}</span></div>{dayEvents.length ? <ul>{dayEvents.map(item => <li key={item.id}><span className="child-badge" style={{ borderColor: childFor(item.childId)?.color || "#9baeb2" }}>{childFor(item.childId)?.name || "공통"}</span><span className="category" style={{ backgroundColor: (categoryFor(item.categoryId)?.color || "#9baeb2") + "33" }}>{categoryFor(item.categoryId)?.name || "기타"}</span><span className="event-text">{item.time && <time>{item.time} </time>}{item.title}</span><button type="button" onClick={() => persist({ type: "event.remove", id: item.id }).catch(() => {})} aria-label={`${item.title} 삭제`}><Trash2 size={17} /></button></li>)}</ul> : <p className="empty-day">아직 일정이 없어요</p>}</div>;
         })}</div>
         <div className="suggestions"><div className="suggestions-head"><div><span className="sparkle-icon"><Sparkles size={19} /></span><span><h3>준비할 일</h3><small>일정을 바탕으로 챙길 일을 정리해요</small></span></div><button type="button" onClick={askAi} disabled={busy}>{busy ? "정리 중…" : "AI로 정리하기"}</button></div>{suggestions.length ? <ul>{suggestions.map((item, i) => { const event = currentEvents.find(event => event.id === item.eventId); return <li key={item.eventId + i}><span className="checkbox" aria-hidden="true" /><span><strong>{childFor(event?.childId || "")?.name || "공통"}</strong> {item.text}</span></li>; })}</ul> : <p>일정을 입력한 뒤 AI로 준비할 일을 정리할 수 있습니다.</p>}</div>
-        <div className="illustration-panel"><div className="illustration-heading"><span className="illustration-icon" aria-hidden="true"><ImagePlus size={22} /></span><div><h3>동화 일러스트 이미지</h3><p>아이별 일정을 작은 말풍선에 담아 배경 그림과 함께 보여줘요.</p></div></div><label className="illustration-style" htmlFor="illustration-style">원하는 꾸밈 분위기 <span>(선택)</span></label><input id="illustration-style" className="illustration-style-input" type="text" value={imageStyle} onChange={event => setImageStyle(event.target.value)} maxLength={160} placeholder="예: 분홍 꽃과 토끼, 파란 하늘과 별" disabled={imageBusy} /><div className="illustration-actions"><button className="illustration-create" type="button" onClick={generateIllustration} disabled={imageBusy || !currentEvents.length}>{imageBusy ? "이미지 만드는 중…" : "AI로 새 배경 만들기"}</button><button className="illustration-template" type="button" onClick={useStaticIllustration} disabled={imageBusy || !currentEvents.length}>기본 일러스트 사용</button>{posterUrl && <button className="illustration-save" type="button" onClick={downloadIllustration}><Download size={17} /> 일러스트 PNG 저장</button>}</div><p className="illustration-privacy">AI는 꾸밈 배경만 생성하고, 아이 이름과 일정은 기기에서 한글로 넣습니다. 저장 이미지에는 챙길 일 목록이 포함되지 않습니다.</p>{posterUrl && <button className="illustration-preview" type="button" onClick={openImagePreview} aria-label="완성된 일정 이미지를 크게 보기"><img src={posterUrl} alt="아이별 일정이 말풍선에 적힌 동화풍 주간 일정표 미리보기" /><span className="illustration-preview-caption">이미지를 눌러 크게 보기</span></button>}</div>
+        <div className="illustration-panel">
+          <div className="illustration-heading"><span className="illustration-icon" aria-hidden="true"><ImagePlus size={22} /></span><div><h3>동화 일러스트 이미지</h3><p>아이별 일정을 작은 말풍선에 담아 배경 그림과 함께 보여줘요.</p></div></div>
+          <div className="background-gallery-heading"><h4>배경 고르기</h4><span>선택할 때 AI 호출 없음</span></div>
+          <div className="background-gallery" aria-label="미리 만든 동화 배경">
+            {backgroundTemplates.map(template => <button className="background-option" type="button" key={template.id} aria-pressed={selectedTemplate === template.id} aria-label={`${template.name} 배경 선택`} onClick={() => chooseBackgroundTemplate(template.id)}>
+              <img src={`./${template.file}`} alt="" loading="lazy" decoding="async" />
+              <span>{template.name}</span>
+            </button>)}
+          </div>
+          <div className="illustration-custom"><label className="illustration-style" htmlFor="illustration-style">원하는 꾸밈 분위기 <span>(선택)</span></label><input id="illustration-style" className="illustration-style-input" type="text" value={imageStyle} onChange={event => setImageStyle(event.target.value)} maxLength={160} placeholder="예: 분홍 꽃과 토끼, 파란 하늘과 별" disabled={imageBusy} /><p>마음에 드는 배경이 없을 때 AI로 새로 만들 수 있어요. 이때만 이미지 생성 API를 사용합니다.</p></div>
+          <div className="illustration-actions"><button className="illustration-create" type="button" onClick={generateIllustration} disabled={imageBusy || !currentEvents.length}>{imageBusy ? "이미지 만드는 중…" : "AI로 새 배경 만들기"}</button>{posterUrl && <button className="illustration-save" type="button" onClick={downloadIllustration}><Download size={17} /> 일러스트 PNG 저장</button>}</div>
+          <p className="illustration-privacy">아이 이름과 일정은 기기에서 한글로 넣습니다. AI로 새 배경을 만들 때도 일정 내용은 보내지 않습니다. 저장 이미지에는 챙길 일 목록이 포함되지 않습니다.</p>
+          {posterUrl && <button className="illustration-preview" type="button" onClick={openImagePreview} aria-label="완성된 일정 이미지를 크게 보기"><img src={posterUrl} alt="아이별 일정이 말풍선에 적힌 동화풍 주간 일정표 미리보기" /><span className="illustration-preview-caption">이미지를 눌러 크게 보기</span></button>}
+        </div>
         {notice && <p className="notice" role="status">{notice}</p>}
       </section>
     </div>

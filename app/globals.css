@@ -190,7 +190,19 @@ h1, h2, h3, p { margin-top: 0; }
 .illustration-icon { width: 42px; height: 42px; flex: none; border-radius: 13px; display: grid; place-items: center; color: #a65e83; background: #ffe4ef; }
 .illustration-heading h3 { margin: 1px 0 5px; color: #503c50; font-size: 17px; }
 .illustration-heading p, .illustration-privacy { margin: 0; color: #766b79; font-size: 12px; line-height: 1.6; }
+.background-gallery-heading { margin: 20px 0 10px; display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 10px; }
+.background-gallery-heading h4 { margin: 0; color: var(--ink); font-size: 15px; }
+.background-gallery-heading span { color: var(--muted); font-size: 12px; }
+.background-gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 9px; }
+.background-option { min-width: 0; padding: 5px; border: 2px solid var(--line); border-radius: 12px; background: var(--skin-surface); color: var(--ink); text-align: left; overflow: hidden; }
+.background-option:hover { border-color: var(--teal); }
+.background-option[aria-pressed="true"] { border-color: var(--teal); box-shadow: 0 0 0 2px var(--skin-soft-strong); }
+.background-option img { display: block; width: 100%; aspect-ratio: 3 / 2; border-radius: 7px; object-fit: cover; }
+.background-option span { display: block; padding: 8px 5px 4px; font-size: 13px; font-weight: 750; }
+.illustration-custom { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+.illustration-custom p { margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .illustration-style { display: block; margin-top: 17px; color: #503c50; font-size: 14px; font-weight: 700; }
+.illustration-custom .illustration-style { margin-top: 0; }
 .illustration-style span { color: #766b79; font-weight: 400; }
 .illustration-style-input { display: block; width: 100%; min-height: 46px; margin-top: 7px; padding: 10px 12px; border: 1px solid #cda9bb; border-radius: 11px; background: #fff; color: #382f3c; font: inherit; font-size: 14px; }
 .illustration-style-input:focus-visible { outline: 3px solid #dba8c3; outline-offset: 2px; }
