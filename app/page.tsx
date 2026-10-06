@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, Download, Plus, Sparkles, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { CalendarDays, ChevronLeft, ChevronRight, Download, ImagePlus, Plus, Sparkles, Trash2 } from "lucide-react";
+import { drawIllustratedPoster } from "@/lib/illustrated-poster";
 
 type CategoryItem = { id: string; name: string; color: string };
 type Child = { id: string; name: string; color: string };
@@ -78,11 +79,22 @@ export default function Home() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [form, setForm] = useState({ date: "", time: "", title: "", categoryId: initialCategories[0].id, childId: "" });
   const [busy, setBusy] = useState(false);
+  const [imageBusy, setImageBusy] = useState(false);
+  const [illustration, setIllustration] = useState("");
+  const [posterUrl, setPosterUrl] = useState("");
   const [notice, setNotice] = useState("");
   const start = iso(dates[0]), end = iso(dates[6]);
   const currentEvents = events.filter(item => item.date >= start && item.date <= end);
   const childFor = (id: string) => children.find(child => child.id === id);
   const categoryFor = (id: string) => categories.find(category => category.id === id);
+  useEffect(() => {
+    if (!illustration || !events.some(item => item.date >= start && item.date <= end)) { setPosterUrl(""); return; }
+    let active = true;
+    drawIllustratedPoster(dates, events.filter(item => item.date >= start && item.date <= end), children, categories, suggestions, illustration)
+      .then(url => { if (active) setPosterUrl(url); })
+      .catch(() => { if (active) setNotice("일러스트 이미지를 표시하지 못했습니다. 다시 만들어 주세요."); });
+    return () => { active = false; };
+  }, [illustration, events, children, categories, suggestions, dates, start, end]);
   function addCategory(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const name = categoryName.trim();
@@ -139,6 +151,31 @@ export default function Home() {
     } catch (error) { setNotice(error instanceof Error ? error.message : "AI 연결에 실패했습니다."); }
     finally { setBusy(false); }
   }
+  async function generateIllustration() {
+    if (!currentEvents.length) { setNotice("이미지에 넣을 일정을 먼저 입력해 주세요."); return; }
+    setImageBusy(true); setNotice("");
+    try {
+      const response = await fetch("/api/illustration", { method: "POST", cache: "no-store" });
+      const data = await response.json() as { image?: string; error?: string };
+      if (!response.ok || !data.image?.startsWith("data:image/jpeg;base64,")) throw new Error(data.error || "일러스트 이미지를 만들지 못했습니다.");
+      setPosterUrl("");
+      setIllustration(data.image);
+      setNotice("일러스트가 완성되었습니다. 미리보기를 확인하고 PNG로 저장하세요.");
+    } catch (error) { setNotice(error instanceof Error ? error.message : "이미지 생성에 실패했습니다."); }
+    finally { setImageBusy(false); }
+  }
+  function useStaticIllustration() {
+    if (!currentEvents.length) { setNotice("이미지에 넣을 일정을 먼저 입력해 주세요."); return; }
+    setPosterUrl("");
+    setIllustration("/illustrated-background.png");
+    setNotice("기본 동화 배경을 적용했습니다. 미리보기를 확인하고 PNG로 저장하세요.");
+  }
+  function downloadIllustration() {
+    if (!posterUrl) { setNotice("일러스트가 준비되면 저장할 수 있습니다."); return; }
+    const link = document.createElement("a"); link.href = posterUrl; link.download = `JuniHani-동화주간일정-${start}.png`;
+    document.body.appendChild(link); link.click(); link.remove();
+    setNotice("동화 주간 일정 PNG가 저장되었습니다.");
+  }
   function download() {
     if (!currentEvents.length) { setNotice("이미지에 넣을 일정을 먼저 입력해 주세요."); return; }
     try {
@@ -178,6 +215,7 @@ export default function Home() {
           return <div className={`day-card ${dayEvents.length ? "has-events" : ""}`} key={iso(d)}><div className="day-heading"><strong>{weekNames[d.getDay()]}요일</strong><span>{label(d)}</span></div>{dayEvents.length ? <ul>{dayEvents.map(item => <li key={item.id}><span className="child-badge" style={{ borderColor: childFor(item.childId)?.color || "#9baeb2" }}>{childFor(item.childId)?.name || "공통"}</span><span className="category" style={{ backgroundColor: (categoryFor(item.categoryId)?.color || "#9baeb2") + "33" }}>{categoryFor(item.categoryId)?.name || "기타"}</span><span className="event-text">{item.time && <time>{item.time} </time>}{item.title}</span><button type="button" onClick={() => { setEvents(previous => previous.filter(e => e.id !== item.id)); setSuggestions(previous => previous.filter(s => s.eventId !== item.id)); }} aria-label={`${item.title} 삭제`}><Trash2 size={17} /></button></li>)}</ul> : <p className="empty-day">아직 일정이 없어요</p>}</div>;
         })}</div>
         <div className="suggestions"><div className="suggestions-head"><div><span className="sparkle-icon"><Sparkles size={19} /></span><span><h3>준비할 일</h3><small>일정을 바탕으로 챙길 일을 정리해요</small></span></div><button type="button" onClick={askAi} disabled={busy}>{busy ? "정리 중…" : "AI로 정리하기"}</button></div>{suggestions.length ? <ul>{suggestions.map((item, i) => { const event = currentEvents.find(event => event.id === item.eventId); return <li key={item.eventId + i}><span className="checkbox" aria-hidden="true" /><span><strong>{childFor(event?.childId || "")?.name || "공통"}</strong> {item.text}</span></li>; })}</ul> : <p>일정을 입력한 뒤 AI로 준비할 일을 정리할 수 있습니다.</p>}</div>
+        <div className="illustration-panel"><div className="illustration-heading"><span className="illustration-icon" aria-hidden="true"><ImagePlus size={22} /></span><div><h3>동화 일러스트 이미지</h3><p>첨부한 예시처럼 구름·별·곰돌이로 꾸민 일정표를 만들어요.</p></div></div><div className="illustration-actions"><button className="illustration-create" type="button" onClick={generateIllustration} disabled={imageBusy || !currentEvents.length}>{imageBusy ? "이미지 만드는 중…" : "AI로 새 배경 만들기"}</button><button className="illustration-template" type="button" onClick={useStaticIllustration} disabled={imageBusy || !currentEvents.length}>기본 일러스트 사용</button>{posterUrl && <button className="illustration-save" type="button" onClick={downloadIllustration}><Download size={17} /> 일러스트 PNG 저장</button>}</div><p className="illustration-privacy">기본 일러스트는 API 크레딧 없이 사용합니다. AI는 꾸밈 배경만 생성하며, 아이 이름과 일정은 기기에서 정확한 한글로 넣습니다.</p>{posterUrl && <div className="illustration-preview"><img src={posterUrl} alt="아이별 일정이 적힌 동화풍 주간 일정표 미리보기" /></div>}</div>
         {notice && <p className="notice" role="status">{notice}</p>}
       </section>
     </div>

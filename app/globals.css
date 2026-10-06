@@ -118,6 +118,24 @@ h1, h2, h3, p { margin-top: 0; }
 .checkbox { width: 18px; height: 18px; flex: none; margin-top: 2px; border: 2px solid #b69a6c; border-radius: 5px; }
 .notice { margin: 14px 0 0; padding: 11px 13px; border-radius: 9px; background: #edf6f3; color: var(--teal-dark); font-size: 13px; line-height: 1.5; }
 
+.illustration-panel { margin-top: 18px; padding: 21px; border: 1px solid #e8dce5; border-radius: 17px; background: linear-gradient(130deg, #fff8fb 0%, #f3f8ff 52%, #fffaf0 100%); }
+.illustration-heading { display: flex; align-items: flex-start; gap: 12px; }
+.illustration-icon { width: 42px; height: 42px; flex: none; border-radius: 13px; display: grid; place-items: center; color: #a65e83; background: #ffe4ef; }
+.illustration-heading h3 { margin: 1px 0 5px; color: #503c50; font-size: 17px; }
+.illustration-heading p, .illustration-privacy { margin: 0; color: #766b79; font-size: 12px; line-height: 1.6; }
+.illustration-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 17px; }
+.illustration-actions button { min-height: 46px; padding: 0 16px; border-radius: 11px; font-size: 13px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.illustration-create { border: 0; background: #9b597c; color: #fff; }
+.illustration-create:hover:not(:disabled) { background: #804767; }
+.illustration-create:disabled, .illustration-template:disabled { opacity: .55; cursor: not-allowed; }
+.illustration-template { border: 1px solid #cda9bb; color: #874e6b; background: #fff; }
+.illustration-template:hover:not(:disabled) { background: #fff4f8; }
+.illustration-save { border: 1px solid #cda9bb; color: #874e6b; background: #fff; }
+.illustration-save:hover { background: #fff4f8; }
+.illustration-privacy { margin-top: 11px; }
+.illustration-preview { margin-top: 17px; overflow: hidden; border-radius: 13px; border: 1px solid #eadde6; background: #fff; }
+.illustration-preview img { display: block; width: 100%; height: auto; }
+
 @media (max-width: 1480px) { .page-intro, .workspace { margin-left: 24px; margin-right: 24px; } }
 @media (max-width: 1050px) { .workspace { grid-template-columns: 1fr; } .editor { max-width: none; } }
 @media (max-width: 700px) {
@@ -140,4 +158,5 @@ h1, h2, h3, p { margin-top: 0; }
   .day-card li { flex-wrap: wrap; }
   .event-text { flex-basis: calc(100% - 44px); order: 3; }
   .day-card li button { margin-left: auto; }
+  .illustration-actions button { width: 100%; }
 }
