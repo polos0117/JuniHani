@@ -141,9 +141,9 @@ h1, h2, h3, p { margin-top: 0; }
 .child-add input, .child-list input { min-width: 0; height: 44px; padding: 0 10px; border: 1px solid #d7e3e1; border-radius: 9px; background: #fff; color: var(--ink); font-size: 14px; }
 .child-add input { flex: 1; }
 .child-add button { min-width: 62px; min-height: 44px; padding: 0 10px; border: 0; border-radius: 9px; background: var(--teal); color: #fff; display: flex; align-items: center; justify-content: center; gap: 3px; font-size: 12px; font-weight: 800; }
-.child-list { list-style: none; padding: 0; margin: 11px 0 0; display: grid; gap: 7px; }
-.child-list li { display: flex; align-items: center; gap: 8px; }
-.child-list input { flex: 1; }
+.child-list { list-style: none; padding: 0; margin: 11px 0 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 7px; }
+.child-list li { min-width: 0; display: flex; align-items: center; gap: 8px; }
+.child-list input { width: 0; flex: 1 1 0; }
 .child-dot { width: 12px; height: 12px; flex: none; border-radius: 50%; }
 .child-list button { width: 44px; height: 44px; flex: none; border: 0; border-radius: 9px; background: #f6f8f7; color: #718589; display: grid; place-items: center; }
 .child-list button:hover { color: #a74743; background: #fff0ed; }
