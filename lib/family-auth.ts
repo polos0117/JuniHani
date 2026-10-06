@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 
 const cookieName = "junihani_family";
+const githubPagesOrigin = "https://polos0117.github.io";
 const encoder = new TextEncoder();
 
 function accessCode() {
@@ -32,6 +33,8 @@ export async function isValidFamilyCode(code: unknown) {
 }
 
 export async function isFamilyAuthorized(request: Request) {
+  const bearer = request.headers.get("authorization")?.match(/^Bearer ([A-Za-z0-9_-]{20,128})$/);
+  if (bearer) return isValidFamilyCode(bearer[1]);
   const rawCookie = request.headers.get("cookie") || "";
   const token = rawCookie.split(";").map(part => part.trim()).find(part => part.startsWith(`${cookieName}=`))?.slice(cookieName.length + 1);
   if (!token || !/^[a-f0-9]{64}$/.test(token)) return false;
@@ -41,6 +44,28 @@ export async function isFamilyAuthorized(request: Request) {
 export function sameOrigin(request: Request) {
   const origin = request.headers.get("origin");
   return !origin || origin === new URL(request.url).origin;
+}
+
+export function allowedFamilyOrigin(request: Request) {
+  const origin = request.headers.get("origin");
+  return !origin || origin === new URL(request.url).origin || origin === githubPagesOrigin;
+}
+
+export function withFamilyCors(request: Request, response: Response) {
+  response.headers.set("Cache-Control", "no-store");
+  if (request.headers.get("origin") === githubPagesOrigin) {
+    response.headers.set("Access-Control-Allow-Origin", githubPagesOrigin);
+    response.headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    response.headers.set("Access-Control-Allow-Headers", "Authorization, Content-Type");
+    response.headers.set("Access-Control-Max-Age", "600");
+    response.headers.append("Vary", "Origin");
+  }
+  return response;
+}
+
+export function familyPreflight(request: Request) {
+  if (request.headers.get("origin") !== githubPagesOrigin) return Response.json({ error: "요청을 확인해 주세요." }, { status: 403 });
+  return withFamilyCors(request, new Response(null, { status: 204 }));
 }
 
 export function familyCookie(request: Request, token: string, maxAge: number) {

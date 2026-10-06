@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, Download, ImagePlus, Plus, Sparkles, Trash2 } from "lucide-react";
 import { drawIllustratedPoster } from "@/lib/illustrated-poster";
+import { familyFetch, forgetFamilyCode, isGithubPages, rememberFamilyCode, storedFamilyCode } from "@/lib/family-client";
 
 type CategoryItem = { id: string; name: string; color: string };
 type Child = { id: string; name: string; color: string };
@@ -90,9 +91,9 @@ export default function Home() {
     }));
   }, []);
   const loadShared = useCallback(async () => {
-    const response = await fetch("/api/family", { cache: "no-store" });
+    const response = await familyFetch("/api/family", { cache: "no-store" });
     const data = await response.json() as SharedData;
-    if (response.status === 401) { setAccess("locked"); throw new Error("가족 공유 코드를 다시 입력해 주세요."); }
+    if (response.status === 401) { forgetFamilyCode(); setAccess("locked"); throw new Error("가족 공유 코드를 다시 입력해 주세요."); }
     if (!response.ok) throw new Error(data.error || "공유 일정을 불러오지 못했습니다.");
     applyShared(data);
   }, [applyShared]);
@@ -100,6 +101,12 @@ export default function Home() {
     let active = true;
     (async () => {
       try {
+        if (isGithubPages()) {
+          if (!storedFamilyCode()) { setAccess("locked"); return; }
+          await loadShared();
+          if (active) setAccess("ready");
+          return;
+        }
         const response = await fetch("/api/session", { cache: "no-store" });
         const result = await response.json() as { authorized?: boolean; error?: string };
         if (!active) return;
@@ -111,6 +118,11 @@ export default function Home() {
     })();
     return () => { active = false; };
   }, [loadShared]);
+  useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register(new URL("sw.js", document.baseURI).href).catch(() => {});
+    }
+  }, []);
   useEffect(() => {
     if (access !== "ready") return;
     const refresh = () => {
@@ -124,6 +136,14 @@ export default function Home() {
   async function unlock(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); setAccessBusy(true); setAccessMessage("");
     try {
+      if (isGithubPages()) {
+        const code = shareCode.trim();
+        const response = await familyFetch("/api/family", { cache: "no-store" }, code);
+        const result = await response.json() as SharedData;
+        if (!response.ok) throw new Error(response.status === 401 ? "공유 코드가 맞지 않습니다." : result.error || "공유 일정을 열지 못했습니다.");
+        rememberFamilyCode(code); applyShared(result); setShareCode(""); setAccess("ready");
+        return;
+      }
       const response = await fetch("/api/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: shareCode.trim() }) });
       const result = await response.json() as { error?: string };
       if (!response.ok) throw new Error(result.error || "공유 코드를 확인하지 못했습니다.");
@@ -132,14 +152,15 @@ export default function Home() {
     finally { setAccessBusy(false); }
   }
   async function signOut() {
-    await fetch("/api/session", { method: "DELETE" });
+    if (isGithubPages()) forgetFamilyCode();
+    else await fetch("/api/session", { method: "DELETE" });
     setAccess("locked"); setChildren([]); setEvents([]); setCategories(initialCategories); setSuggestions([]); setPosterUrl(""); setIllustration("");
   }
   async function persist(operation: Record<string, unknown>) {
     const next = saveQueue.current.then(async () => {
       saving.current = true;
       try {
-        const response = await fetch("/api/family", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(operation) });
+        const response = await familyFetch("/api/family", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(operation) });
         const data = await response.json() as SharedData;
         if (response.status === 401) { setAccess("locked"); throw new Error("가족 공유 코드를 다시 입력해 주세요."); }
         if (!response.ok) throw new Error(data.error || "저장하지 못했습니다.");
@@ -197,7 +218,7 @@ export default function Home() {
     if (!currentEvents.length) { setNotice("먼저 일정을 입력해 주세요."); return; }
     setBusy(true); setNotice("");
     try {
-      const response = await fetch("/api/suggest", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ events: currentEvents.map(item => ({ ...item, childName: childFor(item.childId)?.name || "공통", categoryName: categoryFor(item.categoryId)?.name || "기타" })) }) });
+      const response = await familyFetch("/api/suggest", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ events: currentEvents.map(item => ({ ...item, childName: childFor(item.childId)?.name || "공통", categoryName: categoryFor(item.categoryId)?.name || "기타" })) }) });
       const data = await response.json() as { error?: string; suggestions: Suggestion[] };
       if (!response.ok) throw new Error(data.error || "AI 추천을 가져오지 못했습니다.");
       setSuggestions(data.suggestions); setNotice("준비할 일을 확인해 주세요. 저장 이미지에는 일정만 표시됩니다.");
@@ -208,7 +229,7 @@ export default function Home() {
     if (!currentEvents.length) { setNotice("이미지에 넣을 일정을 먼저 입력해 주세요."); return; }
     setImageBusy(true); setNotice("");
     try {
-      const response = await fetch("/api/illustration", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ style: imageStyle.trim() }), cache: "no-store" });
+      const response = await familyFetch("/api/illustration", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ style: imageStyle.trim() }), cache: "no-store" });
       const data = await response.json() as { image?: string; error?: string };
       if (!response.ok || !data.image?.startsWith("data:image/png;base64,")) throw new Error(data.error || "일러스트 이미지를 만들지 못했습니다.");
       setPosterUrl("");
@@ -220,7 +241,7 @@ export default function Home() {
   function useStaticIllustration() {
     if (!currentEvents.length) { setNotice("이미지에 넣을 일정을 먼저 입력해 주세요."); return; }
     setPosterUrl("");
-    setIllustration("/illustrated-background.png");
+    setIllustration(new URL("illustrated-background.png", document.baseURI).href);
     setNotice("기본 동화 배경을 적용했습니다. 미리보기를 확인하고 PNG로 저장하세요.");
   }
   function downloadIllustration() {
@@ -244,7 +265,7 @@ export default function Home() {
     {access === "loading" ? <p role="status">일정을 확인하는 중…</p> : access === "error" ? <button className="primary-button" type="button" onClick={() => window.location.reload()}>다시 시도</button> :
       <form className="access-form" onSubmit={unlock}><label htmlFor="share-code">가족 공유 코드</label><input id="share-code" type="password" autoComplete="off" required value={shareCode} onChange={event => setShareCode(event.target.value)} placeholder="전달받은 코드를 입력하세요" /><button className="primary-button" disabled={accessBusy}>{accessBusy ? "확인 중…" : "일정 열기"}</button></form>}
     {accessMessage && <p className="access-error" role="alert">{accessMessage}</p>}
-    <small>공유 코드를 받은 가족만 일정을 볼 수 있습니다.</small>
+    <small>공유 코드를 받은 가족만 일정을 볼 수 있습니다. 휴대폰 브라우저 메뉴에서 홈 화면에 추가할 수 있어요.</small>
   </section></main>;
   return <main className="app-shell">
     <header className="topbar"><div className="brand"><span className="brand-mark"><CalendarDays size={22} /></span><span><strong>JuniHani</strong><small>우리 가족 주간 플래너</small></span></div><button className="signout-button" type="button" onClick={signOut}>가족 일정 잠그기</button></header>

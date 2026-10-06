@@ -1,10 +1,16 @@
-import { isFamilyAuthorized, sameOrigin, unauthorized } from "@/lib/family-auth";
+import { allowedFamilyOrigin, familyPreflight, isFamilyAuthorized, unauthorized, withFamilyCors } from "@/lib/family-auth";
 import { changeFamilyState, FamilyInputError, readFamilyState } from "@/lib/family-state";
 
 export const runtime = "edge";
 const noStore = { "Cache-Control": "no-store" };
 
+export function OPTIONS(request: Request) { return familyPreflight(request); }
+
 export async function GET(request: Request) {
+  return withFamilyCors(request, await getFamily(request));
+}
+
+async function getFamily(request: Request) {
   try {
     if (!await isFamilyAuthorized(request)) return unauthorized();
     return Response.json(await readFamilyState(), { headers: noStore });
@@ -15,7 +21,11 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  if (!sameOrigin(request)) return Response.json({ error: "요청을 확인해 주세요." }, { status: 403, headers: noStore });
+  return withFamilyCors(request, await saveFamily(request));
+}
+
+async function saveFamily(request: Request) {
+  if (!allowedFamilyOrigin(request)) return Response.json({ error: "요청을 확인해 주세요." }, { status: 403, headers: noStore });
   try {
     if (!await isFamilyAuthorized(request)) return unauthorized();
     const raw = await request.text();

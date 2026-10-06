@@ -1,11 +1,16 @@
 import { env } from "cloudflare:workers";
 import { generateIllustration, ImageGenerationError } from "@/lib/image-generation";
-import { isFamilyAuthorized, sameOrigin, unauthorized } from "@/lib/family-auth";
+import { allowedFamilyOrigin, familyPreflight, isFamilyAuthorized, unauthorized, withFamilyCors } from "@/lib/family-auth";
 
 export const runtime = "edge";
+export function OPTIONS(request: Request) { return familyPreflight(request); }
 
 export async function POST(request: Request) {
-  if (!sameOrigin(request)) return Response.json({ error: "요청을 확인해 주세요." }, { status: 403 });
+  return withFamilyCors(request, await illustrate(request));
+}
+
+async function illustrate(request: Request) {
+  if (!allowedFamilyOrigin(request)) return Response.json({ error: "요청을 확인해 주세요." }, { status: 403 });
   if (!await isFamilyAuthorized(request)) return unauthorized();
   let style = "";
   try {
