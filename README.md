@@ -29,4 +29,6 @@ AI 준비물 추천과 동화풍 배경 생성은 OpenAI API를 사용합니다.
 
 [GitHub Pages 앱](https://polos0117.github.io/JuniHani/)을 휴대폰에서 열어 공유 코드를 입력하세요. Android Chrome에서는 브라우저 메뉴의 **앱 설치** 또는 **홈 화면에 추가**를, iPhone Safari에서는 공유 메뉴의 **홈 화면에 추가**를 선택하면 됩니다. 설치된 앱도 인터넷 연결이 필요합니다.
 
+로그인 화면이나 일정 화면의 **화면 색상**에서 포근한 민트, 연한 핑크, 맑은 하늘 중 하나를 고를 수 있습니다. 선택은 현재 기기에 저장되며, 일반 주간 계획 PNG에도 적용됩니다.
+
 GitHub Actions가 `main`에 푸시된 정적 PWA 화면을 GitHub Pages에 배포합니다. 일정 데이터와 AI 요청은 기존 [운영 서버](https://kids-week-planner.jjshsin.chatgpt.site/)로 전달합니다. GitHub Pages에는 API 키나 공유 코드가 배포되지 않습니다. GitHub Pages 화면은 공유 코드를 현재 브라우저 탭 세션에만 보관하며, 운영 서버 화면은 HTTP 전용 세션 쿠키를 사용합니다. GitHub 저장소에 푸시하는 것만으로 운영 서버의 API가 자동 배포되지는 않습니다.

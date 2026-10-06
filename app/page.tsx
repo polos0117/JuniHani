@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, Download, ImagePlus, Plus, Sparkles, Trash2 } from "lucide-react";
 import { drawIllustratedPoster } from "@/lib/illustrated-poster";
 import { familyFetch, forgetFamilyCode, isGithubPages, rememberFamilyCode, storedFamilyCode } from "@/lib/family-client";
+import { isSkinId, pngSkinColors, skins, type SkinId } from "@/lib/skins";
 
 type CategoryItem = { id: string; name: string; color: string };
 type Child = { id: string; name: string; color: string };
@@ -20,7 +21,8 @@ function datesInWeek(value: string) {
   start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
   return Array.from({ length: 7 }, (_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); return d; });
 }
-function drawPng(dates: Date[], events: EventItem[], children: Child[], categories: CategoryItem[]) {
+function drawPng(dates: Date[], events: EventItem[], children: Child[], categories: CategoryItem[], skin: SkinId) {
+  const colors = pngSkinColors[skin];
   const canvas = document.createElement("canvas");
   const groups = dates.map(date => events.filter(item => item.date === iso(date)).sort((a, b) => a.time.localeCompare(b.time)));
   const heights = groups.map(items => Math.max(105, 62 + items.length * 43));
@@ -32,23 +34,23 @@ function drawPng(dates: Date[], events: EventItem[], children: Child[], categori
   function box(x: number, y: number, w: number, h: number, color: string) {
     ctx.fillStyle = color; ctx.beginPath(); ctx.roundRect(x, y, w, h, 24); ctx.fill();
   }
-  ctx.fillStyle = "#f3f7f8"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-  box(42, 42, 1116, canvas.height - 84, "#ffffff");
-  ctx.fillStyle = "#173b47"; ctx.font = "700 58px sans-serif"; ctx.fillText("아이들 주간 계획", 82, 137);
-  ctx.fillStyle = "#5d7078"; ctx.font = "500 28px sans-serif";
+  ctx.fillStyle = colors.background; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  box(42, 42, 1116, canvas.height - 84, colors.card);
+  ctx.fillStyle = colors.ink; ctx.font = "700 58px sans-serif"; ctx.fillText("아이들 주간 계획", 82, 137);
+  ctx.fillStyle = colors.muted; ctx.font = "500 28px sans-serif";
   ctx.fillText(`${dates[0].getFullYear()}. ${label(dates[0])} – ${label(dates[6])}`, 82, 188);
   let y = 242;
   dates.forEach((date, i) => {
     const items = groups[i], height = heights[i];
-    box(82, y, 1026, height, "#eef4f5");
-    ctx.fillStyle = "#173b47"; ctx.font = "700 28px sans-serif"; ctx.fillText(weekNames[date.getDay()] + "요일", 106, y + 43);
-    ctx.fillStyle = "#657a81"; ctx.font = "500 20px sans-serif"; ctx.fillText(label(date), 244, y + 42);
-    if (!items.length) { ctx.fillStyle = "#9aaeb2"; ctx.font = "400 22px sans-serif"; ctx.fillText("일정 없음", 106, y + 79); }
+    box(82, y, 1026, height, colors.day);
+    ctx.fillStyle = colors.ink; ctx.font = "700 28px sans-serif"; ctx.fillText(weekNames[date.getDay()] + "요일", 106, y + 43);
+    ctx.fillStyle = colors.muted; ctx.font = "500 20px sans-serif"; ctx.fillText(label(date), 244, y + 42);
+    if (!items.length) { ctx.fillStyle = colors.empty; ctx.font = "400 22px sans-serif"; ctx.fillText("일정 없음", 106, y + 79); }
     items.forEach((item, n) => {
       const child = children.find(child => child.id === item.childId);
       const category = categories.find(category => category.id === item.categoryId);
       box(106, y + 55 + n * 43, 9, 27, child?.color || category?.color || "#9baeb2");
-      ctx.fillStyle = "#173b47"; ctx.font = "600 23px sans-serif";
+      ctx.fillStyle = colors.ink; ctx.font = "600 23px sans-serif";
       const text = `[${child?.name || "공통"} · ${category?.name || "기타"}] ` + (item.time ? item.time + "  " : "") + item.title;
       ctx.fillText(text, 131, y + 77 + n * 43, 944);
     });
@@ -57,7 +59,18 @@ function drawPng(dates: Date[], events: EventItem[], children: Child[], categori
   return canvas.toDataURL("image/png");
 }
 
+function SkinPicker({ selected, onSelect }: { selected: SkinId; onSelect: (skin: SkinId) => void }) {
+  return <div className="skin-picker" aria-label="화면 색상">
+    <p className="skin-picker-title">화면 색상</p>
+    <div className="skin-options">{skins.map(skin => <button className={`skin-option skin-option-${skin.id}`} type="button" key={skin.id} aria-pressed={selected === skin.id} onClick={() => onSelect(skin.id)}>
+      <span className="skin-swatch" aria-hidden="true" style={{ background: skin.light, borderColor: skin.color }}><span style={{ background: skin.color }} /></span>
+      <span>{skin.name}</span>
+    </button>)}</div>
+  </div>;
+}
+
 export default function Home() {
+  const [skin, setSkin] = useState<SkinId>("mint");
   const [access, setAccess] = useState<"loading" | "locked" | "ready" | "error">("loading");
   const [shareCode, setShareCode] = useState("");
   const [accessBusy, setAccessBusy] = useState(false);
@@ -83,6 +96,20 @@ export default function Home() {
   const currentEvents = events.filter(item => item.date >= start && item.date <= end);
   const childFor = (id: string) => children.find(child => child.id === id);
   const categoryFor = (id: string) => categories.find(category => category.id === id);
+  useEffect(() => {
+    const saved = window.localStorage.getItem("junihani-skin");
+    if (isSkinId(saved)) {
+      setSkin(saved);
+      document.documentElement.dataset.skin = saved;
+      document.querySelector('meta[name="theme-color"]')?.setAttribute("content", skins.find(item => item.id === saved)?.color || "#286f73");
+    }
+  }, []);
+  function selectSkin(next: SkinId) {
+    setSkin(next);
+    document.documentElement.dataset.skin = next;
+    window.localStorage.setItem("junihani-skin", next);
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", skins.find(item => item.id === next)?.color || "#286f73");
+  }
   const applyShared = useCallback((data: SharedData) => {
     setChildren(data.children); setCategories(data.categories); setEvents(data.events);
     setForm(previous => ({ ...previous,
@@ -253,7 +280,7 @@ export default function Home() {
   function download() {
     if (!currentEvents.length) { setNotice("이미지에 넣을 일정을 먼저 입력해 주세요."); return; }
     try {
-      const url = drawPng(dates, currentEvents, children, categories);
+      const url = drawPng(dates, currentEvents, children, categories, skin);
       const link = document.createElement("a"); link.href = url; link.download = `아이들-주간계획-${start}.png`;
       document.body.appendChild(link); link.click(); link.remove();
       setNotice("PNG 이미지가 저장되었습니다.");
@@ -266,6 +293,7 @@ export default function Home() {
       <form className="access-form" onSubmit={unlock}><label htmlFor="share-code">가족 공유 코드</label><input id="share-code" type="password" autoComplete="off" required value={shareCode} onChange={event => setShareCode(event.target.value)} placeholder="전달받은 코드를 입력하세요" /><button className="primary-button" disabled={accessBusy}>{accessBusy ? "확인 중…" : "일정 열기"}</button></form>}
     {accessMessage && <p className="access-error" role="alert">{accessMessage}</p>}
     <small>공유 코드를 받은 가족만 일정을 볼 수 있습니다. 휴대폰 브라우저 메뉴에서 홈 화면에 추가할 수 있어요.</small>
+    <SkinPicker selected={skin} onSelect={selectSkin} />
   </section></main>;
   return <main className="app-shell">
     <header className="topbar"><div className="brand"><span className="brand-mark"><CalendarDays size={22} /></span><span><strong>JuniHani</strong><small>우리 가족 주간 플래너</small></span></div><button className="signout-button" type="button" onClick={signOut}>가족 일정 잠그기</button></header>
@@ -280,6 +308,7 @@ export default function Home() {
           <div className="form-row"><label>아이<select value={form.childId} onChange={e => setForm({ ...form, childId: e.target.value })}><option value="">공통 일정</option>{children.map(child => <option key={child.id} value={child.id}>{child.name || "이름 없음"}</option>)}</select></label><label>종류<select value={form.categoryId} onChange={e => setForm({ ...form, categoryId: e.target.value })}>{categories.map(category => <option key={category.id} value={category.id}>{category.name || "이름 없음"}</option>)}</select></label></div><button className="primary-button" type="submit"><Plus size={18} /> 일정 추가</button>
         </form>
         <div className="settings-area"><p className="settings-label">관리 설정</p>
+          <SkinPicker selected={skin} onSelect={selectSkin} />
           <details className="manage-panel"><summary><span>아이 관리</span><span className="manage-count">{children.length}명</span></summary>
         <div className="children-editor"><h2>아이 구분</h2><p>이름이나 별명을 등록하고 일정마다 선택하세요.</p><form onSubmit={addChild} className="child-add"><input aria-label="아이 이름 또는 별명" maxLength={16} placeholder="아이 이름 또는 별명" value={childName} onChange={e => setChildName(e.target.value)} /><button type="submit" disabled={children.length >= 6}><Plus size={17} /> 추가</button></form>{children.length > 0 && <ul className="child-list">{children.map(child => <li key={child.id}><span className="child-dot" style={{ backgroundColor: child.color }} /><input aria-label={`${child.name} 이름 수정`} maxLength={16} value={child.name} onFocus={e => { e.currentTarget.dataset.originalName = child.name; }} onChange={e => { const name = e.target.value; setChildren(previous => previous.map(item => item.id === child.id ? { ...item, name } : item)); setSuggestions([]); }} onBlur={e => { const name = e.target.value.trim(); if (name !== e.currentTarget.dataset.originalName) persist({ type: "child.rename", id: child.id, name }).catch(() => {}); }} /><button type="button" aria-label={`${child.name} 삭제`} title="이 아이의 일정이 있으면 삭제할 수 없습니다" onClick={() => removeChild(child.id)}><Trash2 size={16} /></button></li>)}</ul>}</div>
           </details>
