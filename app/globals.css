@@ -123,6 +123,11 @@ h1, h2, h3, p { margin-top: 0; }
 .illustration-icon { width: 42px; height: 42px; flex: none; border-radius: 13px; display: grid; place-items: center; color: #a65e83; background: #ffe4ef; }
 .illustration-heading h3 { margin: 1px 0 5px; color: #503c50; font-size: 17px; }
 .illustration-heading p, .illustration-privacy { margin: 0; color: #766b79; font-size: 12px; line-height: 1.6; }
+.illustration-style { display: block; margin-top: 17px; color: #503c50; font-size: 14px; font-weight: 700; }
+.illustration-style span { color: #766b79; font-weight: 400; }
+.illustration-style-input { display: block; width: 100%; min-height: 46px; margin-top: 7px; padding: 10px 12px; border: 1px solid #cda9bb; border-radius: 11px; background: #fff; color: #382f3c; font: inherit; font-size: 14px; }
+.illustration-style-input:focus-visible { outline: 3px solid #dba8c3; outline-offset: 2px; }
+.illustration-style-input:disabled { opacity: .6; }
 .illustration-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 17px; }
 .illustration-actions button { min-height: 46px; padding: 0 16px; border-radius: 11px; font-size: 13px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
 .illustration-create { border: 0; background: #9b597c; color: #fff; }
